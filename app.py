@@ -1,7 +1,7 @@
 import os, sqlite3, json, secrets
 from datetime import datetime
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, flash, render_template, abort
+from flask import Flask, render_template,render_template_string,request, redirect, url_for, session, flash, render_template, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
