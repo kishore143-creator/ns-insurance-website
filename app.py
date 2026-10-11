@@ -8,6 +8,12 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.environ.get('NS_INSURANCE_DB', os.path.join(BASE_DIR, 'ns_insurance.db'))
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'local-development-key-change-before-deployment')
+
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax'
+)
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'ChangeMe123!')
 ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD)
