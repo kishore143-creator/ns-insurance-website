@@ -279,5 +279,190 @@ def export_csv():
         writer.writerow([r['id'], r['created_at'], r['full_name'], r['mobile'], r['city'], r['provider'], r['insurance_type'], r['requirement'], r['coverage_amount'], r['payment_frequency'], r['existing_insurance'], r['members_json'], r['notes'], r['status']])
     return Response('\ufeff' + output.getvalue(), mimetype='text/csv; charset=utf-8', headers={'Content-Disposition': 'attachment; filename=ns-insurance-enquiries.csv'})
 
+@app.route('/admin/policies')
+@admin_required
+def manage_policies():
+    with db() as conn:
+        policies = conn.execute('''
+            SELECT p.*, c.name AS company_name
+            FROM insurance_policies p
+            JOIN insurance_companies c ON c.id = p.company_id
+            ORDER BY p.id DESC
+        ''').fetchall()
+        companies = conn.execute(
+            'SELECT * FROM insurance_companies ORDER BY name'
+        ).fetchall()
+
+    body = '''
+    <main class="admin-dashboard">
+      <h1>Manage Policies</h1>
+      <p><a class="text-link" href="{{ url_for('admin_dashboard') }}">← Back to enquiries</a></p>
+      <h2>Add a policy</h2>
+      <form method="post" action="{{ url_for('add_policy') }}" class="quote-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Insurance company
+          <select name="company_id" required>
+            <option value="">Choose company</option>
+            {% for c in companies %}
+              <option value="{{ c.id }}">{{ c.name }} — {{ c.insurance_type }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Policy name
+          <input name="name" required maxlength="160">
+        </label>
+        <label>Category
+          <select name="category" required>
+            <option>Life Insurance - Savings Plan</option>
+            <option>Life Insurance - Term Plan</option>
+            <option>Life Insurance - Child Plan</option>
+            <option>Life Insurance - Retirement Plan</option>
+            <option>Health Insurance - Individual</option>
+            <option>Health Insurance - Family Floater</option>
+            <option>Health Insurance - Senior Citizen</option>
+            <option>Health Insurance - Top-up</option>
+          </select>
+        </label>
+        <label>Description
+          <textarea name="description" required maxlength="2000"></textarea>
+        </label>
+        <label>Benefits (verify with insurer)
+          <textarea name="benefits" maxlength="3000"></textarea>
+        </label>
+        <label>Eligibility
+          <textarea name="eligibility" maxlength="2000"></textarea>
+        </label>
+        <label>Exclusions
+          <textarea name="exclusions" maxlength="2000"></textarea>
+        </label>
+        <label>Official brochure URL
+          <input name="brochure_url" type="url" maxlength="500">
+        </label>
+        <label><input type="checkbox" name="is_published" value="yes"> Publish on website</label>
+        <button class="button submit-button" type="submit">Save policy</button>
+      </form>
+      <h2>Existing policies</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Company</th><th>Policy</th><th>Category</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for p in policies %}
+          <tr>
+            <td>{{ p.company_name }}</td>
+            <td>{{ p.name }}</td>
+            <td>{{ p.category }}</td>
+            <td>{{ 'Published' if p.is_published else 'Hidden' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4">No policies added yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    </main>
+    '''
+    return render_template(
+        'page.html',
+        title='Manage Policies',
+        body=render_template_string(body, policies=policies, companies=companies)
+    )
+
+
+@app.route('/admin/policies/add', methods=['POST'])
+@admin_required
+def add_policy():
+    if not secrets.compare_digest(
+        request.form.get('csrf_token', ''),
+        session.get('csrf_token', '')
+    ):
+        abort(400, 'Invalid form token. Please refresh and try again.')
+
+    company_id = request.form.get('company_id', type=int)
+    name = safe_text(request.form.get('name'), 160)
+    category = safe_text(request.form.get('category'), 100)
+    description = safe_text(request.form.get('description'), 2000)
+    benefits = safe_text(request.form.get('benefits'), 3000)
+    eligibility = safe_text(request.form.get('eligibility'), 2000)
+    exclusions = safe_text(request.form.get('exclusions'), 2000)
+    brochure_url = safe_text(request.form.get('brochure_url'), 500)
+    is_published = 1 if request.form.get('is_published') == 'yes' else 0
+
+    allowed_categories = {
+        'Life Insurance - Savings Plan',
+        'Life Insurance - Term Plan',
+        'Life Insurance - Child Plan',
+        'Life Insurance - Retirement Plan',
+        'Health Insurance - Individual',
+        'Health Insurance - Family Floater',
+        'Health Insurance - Senior Citizen',
+        'Health Insurance - Top-up'
+    }
+
+    if not company_id or not name or not description or category not in allowed_categories:
+        abort(400, 'Please enter a valid company, policy name, category and description.')
+
+    with db() as conn:
+        company = conn.execute(
+            'SELECT id FROM insurance_companies WHERE id=? AND is_active=1',
+            (company_id,)
+        ).fetchone()
+        if not company:
+            abort(400, 'Please select an active insurance company.')
+
+        conn.execute('''
+            INSERT INTO insurance_policies
+            (company_id, name, category, description, benefits, eligibility,
+             exclusions, brochure_url, is_published, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            company_id, name, category, description, benefits, eligibility,
+            exclusions, brochure_url, is_published,
+            datetime.now().strftime('%Y-%m-%d %H:%M')
+        ))
+
+    flash('Policy saved successfully.', 'success')
+    return redirect(url_for('manage_policies'))
+@app.route('/policies')
+def public_policies():
+    with db() as conn:
+        policies = conn.execute('''
+            SELECT p.*, c.name AS company_name
+            FROM insurance_policies p
+            JOIN insurance_companies c ON c.id = p.company_id
+            WHERE p.is_published=1 AND c.is_active=1
+            ORDER BY c.name, p.category, p.name
+        ''').fetchall()
+
+    body = '''
+    <main class="section">
+      <div class="section-heading">
+        <span class="eyebrow">INSURANCE POLICY DIRECTORY</span>
+        <h1>Explore Life & Health Policies</h1>
+        <p>Review official policy documents and confirm terms with the insurer.</p>
+      </div>
+      <div class="provider-grid">
+      {% for p in policies %}
+        <article class="provider-card">
+          <span class="tag">{{ p.category }}</span>
+          <h2>{{ p.name }}</h2>
+          <p><b>Company:</b> {{ p.company_name }}</p>
+          <p>{{ p.description }}</p>
+          {% if p.benefits %}<p><b>Benefits:</b> {{ p.benefits }}</p>{% endif %}
+          {% if p.eligibility %}<p><b>Eligibility:</b> {{ p.eligibility }}</p>{% endif %}
+          {% if p.exclusions %}<p><b>Exclusions:</b> {{ p.exclusions }}</p>{% endif %}
+          {% if p.brochure_url %}
+            <p><a class="text-link" href="{{ p.brochure_url }}" target="_blank" rel="noopener noreferrer">View brochure ↗</a></p>
+          {% endif %}
+        </article>
+      {% else %}
+        <p>No policies are currently published.</p>
+      {% endfor %}
+      </div>
+      <p class="form-footnote">Policy details are summaries only. Refer to the insurer's official policy wording for terms, exclusions and benefits.</p>
+    </main>
+    '''
+    return render_template(
+        'page.html',
+        title='Insurance Policies',
+        body=render_template_string(body, policies=policies)
+    )
 if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_DEBUG', '0') == '1', host='127.0.0.1', port=int(os.environ.get('PORT', '5000')))
