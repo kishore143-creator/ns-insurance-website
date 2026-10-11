@@ -470,6 +470,15 @@ def public_policies():
       <div class="provider-grid">
       {% for p in policies %}
         <article class="provider-card">
+        
+{% if 'Tata AIA Fortune Guarantee Supreme' in p.name %}
+  <img
+    src="{{ url_for('static', filename='NS Insurance Family Protection Brochure.png') }}"
+    alt="NS Insurance family protection brochure for Tata AIA Fortune Guarantee Supreme"
+    style="width:100%;height:auto;border-radius:12px;margin-bottom:16px;"
+  >
+{% endif %}
+
           <span class="tag">{{ p.category }}</span>
           <h2>{{ p.name }}</h2>
           <p><b>Company:</b> {{ p.company_name }}</p>
