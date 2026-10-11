@@ -79,6 +79,35 @@ def init_db():
             FOREIGN KEY (company_id) REFERENCES insurance_companies(id)
         )''')
 
+        conn.executemany(
+            '''INSERT OR IGNORE INTO insurance_companies
+               (name, insurance_type, website_url, logo_url, is_active, created_at)
+               VALUES (?, ?, ?, ?, 1, ?)''',
+            [
+                (
+                    'Tata AIA Life Insurance',
+                    'Life Insurance',
+                    'https://www.tataaia.com/',
+                    '',
+                    datetime.now().strftime('%Y-%m-%d %H:%M')
+                ),
+                (
+                    'LIC',
+                    'Life Insurance',
+                    'https://licindia.in/',
+                    '',
+                    datetime.now().strftime('%Y-%m-%d %H:%M')
+                ),
+                (
+                    'Care Health Insurance',
+                    'Health Insurance',
+                    'https://www.careinsurance.com/',
+                    '',
+                    datetime.now().strftime('%Y-%m-%d %H:%M')
+                )
+            ]
+        )
+
 init_db()
 
 
